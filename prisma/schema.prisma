@@ -1,0 +1,139 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Пользователи
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Отношения
+  accounts      Account[]
+  sessions      Session[]
+  ownedRooms    Room[]    @relation("RoomOwner")
+  participants  Participant[]
+  messages      Message[]
+  settings      UserSettings?
+}
+
+// Аккаунты для OAuth
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// Сессии пользователей
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Настройки пользователя
+model UserSettings {
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  defaultMicEnabled  Boolean @default(true)
+  defaultCamEnabled  Boolean @default(true)
+  preferredLanguage  String  @default("ru")
+  darkMode           Boolean @default(false)
+  notifications      Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Комнаты для конференций
+model Room {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isPrivate   Boolean  @default(false)
+  password    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ownerId     String
+
+  // Отношения
+  owner        User          @relation("RoomOwner", fields: [ownerId], references: [id])
+  participants Participant[]
+  messages     Message[]
+  recordings   Recording[]
+}
+
+// Участники комнаты
+model Participant {
+  id        String   @id @default(cuid())
+  userId    String
+  roomId    String
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+  isMuted   Boolean  @default(false)
+  isVideoOff Boolean  @default(false)
+  isAdmin   Boolean  @default(false)
+
+  // Отношения
+  user      User     @relation(fields: [userId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id])
+
+  @@unique([userId, roomId])
+}
+
+// Сообщения в чате
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  userId    String
+  roomId    String
+  isDeleted Boolean  @default(false)
+
+  // Отношения
+  user      User     @relation(fields: [userId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id])
+}
+
+// Записи конференций
+model Recording {
+  id        String   @id @default(cuid())
+  roomId    String
+  path      String
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  size      Int?     // размер в байтах
+
+  // Отношения
+  room      Room     @relation(fields: [roomId], references: [id])
+}
